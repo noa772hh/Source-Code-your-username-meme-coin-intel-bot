@@ -6,14 +6,15 @@ import uvicorn
 
 load_dotenv()
 
-RPC = os.getenv("BLAST_RPC")  # Use your RPC from .env
+RPC = os.getenv("BLAST_RPC")  # Use your Blast RPC or any public Base RPC
 web3 = Web3(Web3.HTTPProvider(RPC))
 
 app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"status": "Meme Coin Bot dey run 🔥"}
+    latest_block = web3.eth.block_number
+    return {"status": "Meme Coin Bot dey run 🔥", "latest_block": latest_block}
 
 def run_bot():
     print("Meme coin bot started...")
@@ -22,4 +23,5 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))  # 👈 This helps Render detect port
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
