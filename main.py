@@ -1,13 +1,16 @@
-import os
+from flask import Flask
+import threading
 import time
+import os
 import requests
-from dotenv import load_dotenv
 from web3 import Web3
 from datetime import datetime
+from dotenv import load_dotenv
 
 load_dotenv()
 
-# ENV vars
+app = Flask(__name__)
+
 BASE_RPC = os.getenv("BASE_RPC")
 BASESCAN_API_KEY = os.getenv("BASESCAN_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -15,11 +18,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 web3 = Web3(Web3.HTTPProvider(BASE_RPC))
 CHECKED_TXS = set()
-
-# Fresh wallet threshold
 MAX_TX_COUNT = 3
-
-print("👀 Watching for fresh wallet buys...")
 
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -91,5 +90,12 @@ def monitor_blocks():
             last_block = current_block
         time.sleep(2)
 
+@app.route("/")
+def home():
+    return "Bot dey run well well!"
+
 if __name__ == "__main__":
-    monitor_blocks()
+    # Start monitor_blocks for background thread
+    threading.Thread(target=monitor_blocks, daemon=True).start()
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
