@@ -1,15 +1,11 @@
-from flask import Flask
-import threading
-import time
 import os
+import time
 import requests
+from dotenv import load_dotenv
 from web3 import Web3
 from datetime import datetime
-from dotenv import load_dotenv
 
 load_dotenv()
-
-app = Flask(__name__)
 
 BASE_RPC = os.getenv("BASE_RPC")
 BASESCAN_API_KEY = os.getenv("BASESCAN_API_KEY")
@@ -18,7 +14,14 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 web3 = Web3(Web3.HTTPProvider(BASE_RPC))
 CHECKED_TXS = set()
+
 MAX_TX_COUNT = 3
+MIN_TOKEN_AGE_DAYS = 30
+MIN_HOLDERS = 10
+
+MEME_KEYWORDS = ['DOGE', 'SHIB', 'MEME', 'PEPE', 'BABYDOGE', 'ELON', 'FLOKI']
+
+print("👀 Watching for fresh wallet buys with better filters...")
 
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -48,11 +51,20 @@ def get_token_info(token_address):
         result = res.get("result", {})
         name = result.get("name", "")
         symbol = result.get("symbol", "")
-        created_time = datetime.utcfromtimestamp(int(result.get("createdAt", 0)))
+        created_at = int(result.get("createdAt", 0))
+        holders = int(result.get("holdersCount", 0))
+        created_time = datetime.utcfromtimestamp(created_at)
         age_days = (datetime.utcnow() - created_time).days
-        return name, symbol, age_days
+        return name, symbol, age_days, holders
     except:
-        return None, None, 0
+        return None, None, 0, 0
+
+def is_meme_token(symbol):
+    symbol_upper = symbol.upper()
+    for keyword in MEME_KEYWORDS:
+        if keyword in symbol_upper:
+            return True
+    return False
 
 def process_tx(tx):
     if tx["hash"] in CHECKED_TXS:
@@ -65,14 +77,20 @@ def process_tx(tx):
         return
     if not is_wallet_fresh(from_addr):
         return
-    name, symbol, age = get_token_info(to)
-    if not symbol or age < 30:
+
+    name, symbol, age, holders = get_token_info(to)
+    if not symbol or age < MIN_TOKEN_AGE_DAYS or holders < MIN_HOLDERS:
         return
+    if not is_meme_token(symbol):
+        return
+
     message = (
-        f"🚨 *Fresh Wallet Buy Alert!*\n\n"
+        f"🚨 *Fresh Wallet Meme Coin Buy Alert!*\n\n"
         f"• Wallet: [{from_addr}](https://basescan.org/address/{from_addr})\n"
         f"• Token: [{symbol}](https://basescan.org/token/{to})\n"
+        f"• Name: {name}\n"
         f"• Age: {age} days\n"
+        f"• Holders: {holders}\n"
         f"• TX: [View TX](https://basescan.org/tx/{tx['hash']})"
     )
     send_telegram_alert(message)
@@ -90,12 +108,5 @@ def monitor_blocks():
             last_block = current_block
         time.sleep(2)
 
-@app.route("/")
-def home():
-    return "Bot dey run well well!"
-
 if __name__ == "__main__":
-    # Start monitor_blocks for background thread
-    threading.Thread(target=monitor_blocks, daemon=True).start()
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port)
+    monitor_blocks()
