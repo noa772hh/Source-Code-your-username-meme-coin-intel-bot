@@ -64,3 +64,21 @@ def main_loop():
 
 if __name__ == "__main__":
     main_loop()
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# Your main logic (infinite loop, wallet scan, etc.) stays above...
+
+# Fake web server for Render
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+def run_health_server():
+    server = HTTPServer(("0.0.0.0", 10000), HealthCheckHandler)
+    server.serve_forever()
+
+# Start server in background so it doesn't block main loop
+threading.Thread(target=run_health_server, daemon=True).start()
