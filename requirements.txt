@@ -1,3 +1,2 @@
 requests
-web3
 python-dotenv
